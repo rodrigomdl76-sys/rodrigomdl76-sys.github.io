@@ -9776,7 +9776,9 @@ window.limparCamadasAcessorios=function(){const c=document.getElementById('camad
 #pet-svg-container{position:relative}
 #pet-svg-container.rp-sprite-active > svg,
 #pet-svg-container.rp-sprite-active > .pet-svg,
-#pet-svg-container.rp-sprite-active > [data-pet-svg]{display:none!important}
+#pet-svg-container.rp-sprite-active > [data-pet-svg],
+#pet-svg-container.rp-sprite-active .camada-pet,
+#pet-svg-container.rp-sprite-active .camada-pet svg{display:none!important;visibility:hidden!important}
 #pet-svg-container .rp-sprite-host{
   position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
   display:flex!important;align-items:center!important;justify-content:center!important;
@@ -9836,6 +9838,8 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
     b.classList.add('rp-sprite-active');
     const svg=b.querySelector(':scope > svg');
     if(svg)svg.style.display='none';
+    const camada=b.querySelector(':scope > .camada-pet');
+    if(camada){camada.style.display='none';camada.style.visibility='hidden'}
     return host;
   }
 
@@ -9887,6 +9891,8 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
     b.classList.add('rp-sprite-active');
     const svg=b.querySelector(':scope > svg');
     if(svg)svg.style.display='none';
+    const camada=b.querySelector(':scope > .camada-pet');
+    if(camada){camada.style.display='none';camada.style.visibility='hidden'}
     sync();
   }
 
