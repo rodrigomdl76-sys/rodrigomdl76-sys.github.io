@@ -9792,6 +9792,7 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
   const DUR={idle:150,danca:85,carinho:105,celebracao:85};
   let timer=0, token=0;
   let current='idle';
+  let hostRef=null;
 
   function ativo(){
     try{return window.estado?.petAtual==='gato' && typeof window.calcularFase==='function' && window.calcularFase(window.obterDadosPetAtual()?.nivel||1)===1}
@@ -9812,13 +9813,14 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
     return host;
   }
   function setFrame(host,src){const img=host?.querySelector('.rp-sprite-img'); if(img&&img.getAttribute('src')!==src)img.src=src}
-  function stop(){clearTimeout(timer);timer=0}
+  function stop(){clearTimeout(timer);timer=0;token++;hostRef=null}
   function play(name='idle',loop=false){
     if(!ativo()) return false;
     const host=renderHost(); if(!host)return false;
-    stop(); current=FRAMES[name]?name:'idle'; const frames=FRAMES[current]; const my=++token; let i=0;
+    stop(); current=FRAMES[name]?name:'idle'; const frames=FRAMES[current]; const my=token; let i=0;
+    hostRef=host;
     const step=()=>{
-      if(my!==token)return;
+      if(my!==token || hostRef!==host)return;
       if(!ativo())return;
       setFrame(host,frames[i]); i++;
       if(i>=frames.length){
@@ -9831,8 +9833,12 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
   }
   function sync(){
     if(!ativo())return;
-    renderHost();
-    if(current==='idle' || !timer)play('idle',true);
+    const host=renderHost();
+    if(!host)return;
+    // atualizarTelaInterna() pode recriar o DOM do pet. Se isso acontecer,
+    // o timer antigo continua apontando para a imagem removida. Reiniciamos
+    // a animação no novo host para evitar imagem parada/piscando.
+    if(hostRef!==host || !timer) play(current, current==='idle');
   }
   window.rpSpritePlay=play;
   window.rpSpriteSync=sync;
