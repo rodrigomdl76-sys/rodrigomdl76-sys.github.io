@@ -9771,17 +9771,29 @@ window.limparCamadasAcessorios=function(){const c=document.getElementById('camad
 })();
 </script>
 
-<style id="rotinapet-sprites-cat-v1">
-/* ===== RotinaPet — sprites da gata / fase 1 ===== */
-#pet-svg-container .rp-sprite-host{width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative;z-index:2;pointer-events:none}
-#pet-svg-container .rp-sprite-img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;user-select:none;-webkit-user-drag:none;image-rendering:auto}
-#pet-svg-container.rp-sprite-active svg{display:none!important}
+<style id="rotinapet-sprites-cat-v2">
+/* ===== RotinaPet — sprites da gata / fase 1 — integração robusta ===== */
+#pet-svg-container{position:relative}
+#pet-svg-container.rp-sprite-active > svg,
+#pet-svg-container.rp-sprite-active > .pet-svg,
+#pet-svg-container.rp-sprite-active > [data-pet-svg]{display:none!important}
+#pet-svg-container .rp-sprite-host{
+  position:absolute!important;inset:0!important;width:100%!important;height:100%!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  z-index:50!important;pointer-events:none!important;overflow:visible!important;
+}
+#pet-svg-container .rp-sprite-img{
+  width:100%!important;height:100%!important;object-fit:contain!important;display:block!important;
+  pointer-events:none!important;user-select:none!important;-webkit-user-drag:none!important;
+  image-rendering:auto!important;
+}
+#pet-svg-container .rp-sprite-img[src=""]{display:none!important}
 body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
 @media(prefers-reduced-motion:reduce){#pet-svg-container .rp-sprite-img{animation:none!important}}
 </style>
-
-<script id="rotinapet-sprites-cat-v1-js">
+<script id="rotinapet-sprites-cat-v2-js">
 (()=>{
+  'use strict';
   const BASE='assets/sprites/gato/fase1/';
   const FRAMES={
     idle:Array.from({length:8},(_,i)=>`${BASE}idle/idle_${String(i+1).padStart(2,'0')}.png`),
@@ -9789,98 +9801,142 @@ body.modo-zen #pet-svg-container .rp-sprite-img{filter:none!important}
     carinho:Array.from({length:10},(_,i)=>`${BASE}carinho/carinho_${String(i+1).padStart(2,'0')}.png`),
     celebracao:Array.from({length:12},(_,i)=>`${BASE}celebracao/celebracao_${String(i+1).padStart(2,'0')}.png`)
   };
-  const DUR={idle:150,danca:85,carinho:105,celebracao:85};
-  let timer=0, token=0;
-  let current='idle';
+  const DUR={idle:150,danca:90,carinho:105,celebracao:90};
+  let timer=0, token=0, current='idle', hostRef=null;
 
+  function estadoAtual(){return window.estado||null}
+  function faseAtual(){
+    try{
+      const e=estadoAtual();
+      const d=typeof window.obterDadosPetAtual==='function'?window.obterDadosPetAtual():null;
+      const nivel=Number(d?.nivel ?? e?.nivel ?? 1)||1;
+      return typeof window.calcularFase==='function'?Number(window.calcularFase(nivel)):1;
+    }catch(_){return 1}
+  }
   function ativo(){
-    try{return window.estado?.petAtual==='gato' && typeof window.calcularFase==='function' && window.calcularFase(window.obterDadosPetAtual()?.nivel||1)===1}
-    catch(_){return false}
+    const e=estadoAtual();
+    return !!e && e.petAtual==='gato' && faseAtual()===1;
   }
   function box(){return document.getElementById('pet-svg-container')}
-  function renderHost(){
-    const b=box(); if(!b||!ativo()) return null;
-    let host=b.querySelector('.rp-sprite-host');
+
+  function garantirHost(){
+    const b=box();
+    if(!b || !ativo()) return null;
+    let host=b.querySelector(':scope > .rp-sprite-host');
     if(!host){
-      b.innerHTML='<div class="rp-sprite-host"><img class="rp-sprite-img" alt="Gata em animação"></div><div class="camada-acessorio" id="camada-acessorio"></div>';
-      host=b.querySelector('.rp-sprite-host');
-      b.classList.add('rp-sprite-active');
-      if(typeof window.renderizarAcessorioNoContainer==='function'){
-        try{window.renderizarAcessorioNoContainer()}catch(_){}
-      }
+      host=document.createElement('div');
+      host.className='rp-sprite-host';
+      const img=document.createElement('img');
+      img.className='rp-sprite-img';
+      img.alt='Gata em animação';
+      img.draggable=false;
+      host.appendChild(img);
+      b.appendChild(host);
     }
+    b.classList.add('rp-sprite-active');
+    const svg=b.querySelector(':scope > svg');
+    if(svg)svg.style.display='none';
     return host;
   }
-  function setFrame(host,src){const img=host?.querySelector('.rp-sprite-img'); if(img&&img.getAttribute('src')!==src)img.src=src}
-  function stop(){clearTimeout(timer);timer=0}
+
+  function setFrame(host,src){
+    const img=host?.querySelector('.rp-sprite-img');
+    if(img && img.getAttribute('src')!==src)img.src=src;
+  }
+  function stop(){clearTimeout(timer);timer=0;token++;hostRef=null}
+
   function play(name='idle',loop=false){
     if(!ativo()) return false;
-    const host=renderHost(); if(!host)return false;
-    stop(); current=FRAMES[name]?name:'idle'; const frames=FRAMES[current]; const my=++token; let i=0;
+    const host=garantirHost();
+    if(!host)return false;
+    stop();
+    current=FRAMES[name]?name:'idle';
+    const frames=FRAMES[current];
+    const my=token;
+    let i=0;
+    hostRef=host;
     const step=()=>{
-      if(my!==token)return;
+      if(my!==token || hostRef!==host)return;
       if(!ativo())return;
-      setFrame(host,frames[i]); i++;
+      setFrame(host,frames[i]);
+      i++;
       if(i>=frames.length){
-        if(!loop){play('idle',true);return}
+        if(!loop){
+          play('idle',true);
+          return;
+        }
         i=0;
       }
       timer=setTimeout(step,DUR[current]);
     };
-    step(); return true;
+    step();
+    return true;
   }
+
   function sync(){
     if(!ativo())return;
-    renderHost();
-    if(current==='idle' || !timer)play('idle',true);
+    const host=garantirHost();
+    if(!host)return;
+    if(hostRef!==host || !timer) play(current==='idle'?'idle':current,current==='idle');
   }
+
+  function hideSvgAndSync(){
+    if(!ativo())return;
+    const b=box();
+    if(!b)return;
+    b.classList.add('rp-sprite-active');
+    const svg=b.querySelector(':scope > svg');
+    if(svg)svg.style.display='none';
+    sync();
+  }
+
   window.rpSpritePlay=play;
   window.rpSpriteSync=sync;
 
-  function wrapOnce(name,fn){
-    if(typeof window[name]!=='function' || window[name].__rpSpriteWrapped)return;
+  function wrap(name){
     const old=window[name];
+    if(typeof old!=='function' || old.__rpSpriteWrappedV2)return;
     const wrapped=function(){
       const result=old.apply(this,arguments);
-      try{
-        if(name==='interagirComPet' && ativo())play('carinho',false);
-        if(name==='acaoPet' && ativo() && arguments[0]==='brincar')play('danca',false);
-        if(name==='celebrarEvolucaoPet' && ativo())play('celebracao',false);
-      }catch(_){}
+      setTimeout(()=>{
+        try{
+          if(name==='interagirComPet' && ativo())play('carinho',false);
+          else if(name==='acaoPet' && ativo() && (arguments[0]==='brincar'||arguments[0]==='dancar'||arguments[0]==='danca'))play('danca',false);
+          else if(name==='celebrarEvolucaoPet' && ativo())play('celebracao',false);
+          else sync();
+        }catch(_){ }
+      },0);
       return result;
     };
-    wrapped.__rpSpriteWrapped=true;
+    wrapped.__rpSpriteWrappedV2=true;
     window[name]=wrapped;
   }
+
   function boot(){
-    wrapOnce('interagirComPet');
-    wrapOnce('acaoPet');
-    wrapOnce('celebrarEvolucaoPet');
-    sync();
+    wrap('interagirComPet');
+    wrap('acaoPet');
+    wrap('celebrarEvolucaoPet');
+    hideSvgAndSync();
   }
-  const originalPetSVG=window.petSVG;
-  if(typeof originalPetSVG==='function' && !originalPetSVG.__rpSpriteBase){
-    const spritePetSVG=function(tipo,fase){
-      if(tipo==='gato' && Number(fase)===1){
-        return '<div class="rp-sprite-host"><img class="rp-sprite-img" alt="Gata" src="'+FRAMES.idle[0]+'"></div>';
-      }
-      return originalPetSVG.apply(this,arguments);
-    };
-    spritePetSVG.__rpSpriteBase=true;
-    window.petSVG=spritePetSVG;
-  }
+
+  /* Não dependemos de sobrescrever petSVG: o SVG pode ser recriado pela aplicação.
+     O sprite é colocado por cima e o SVG é ocultado sempre que a gata está na fase 1. */
   const oldAtualizar=window.atualizarTelaInterna;
-  if(typeof oldAtualizar==='function' && !oldAtualizar.__rpSpriteWrapped){
+  if(typeof oldAtualizar==='function' && !oldAtualizar.__rpSpriteWrappedV2){
     const wrapped=function(){
+      stop();
       const result=oldAtualizar.apply(this,arguments);
-      requestAnimationFrame(()=>{try{sync()}catch(_){};wrapOnce('interagirComPet');wrapOnce('acaoPet');wrapOnce('celebrarEvolucaoPet')});
+      requestAnimationFrame(()=>{try{boot()}catch(_){}});
       return result;
     };
-    wrapped.__rpSpriteWrapped=true;
+    wrapped.__rpSpriteWrappedV2=true;
     window.atualizarTelaInterna=wrapped;
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-  setTimeout(boot,500);
+
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+  setTimeout(boot,250);
+  setTimeout(boot,900);
 })();
 </script>
 </body>
